@@ -2446,6 +2446,32 @@ const p=$('#evp');if(p)p.onclick=()=>{const n=$('#evn').value,E=evGet(),last=E[E
 if(last&&n<evAdd(last.d,56)){m('Debe ser mínimo 8 semanas después de la última evaluación ('+evLong(evAdd(last.d,56))+' o después).');return}if(n<dayKey(td())){m('Elige una fecha futura.');return}S.p.nx=n;evPersist();toast('Próxima evaluación: '+evLong(n));prgUI()}}
 {const _p=prgUI;prgUI=function(){_p();const el=$('#prgb');if(el){el.insertAdjacentHTML('afterbegin','<div id="evbox" style="margin-bottom:16px">'+evHTML()+'</div>');evBind()}}}
 
+/*feat6: notificaciones del administrador (cumpleaños y evaluaciones)*/
+function ntfItems(){const today=dayKey(td()),ty=+today.slice(0,4),out=[];
+Object.entries(S.profiles||{}).forEach(([pk,cl])=>{const p=(cl&&cl.p)||{},nm=p.name||pk;if(p.status==='suspended')return;
+if(/^\d{4}-\d{2}-\d{2}$/.test(p.bd||'')){let nb=ty+p.bd.slice(4);if(nb<today)nb=(ty+1)+p.bd.slice(4);out.push({t:'b',pk,nm,date:nb,dl:evDiff(today,nb),age:+nb.slice(0,4)-(+p.bd.slice(0,4))})}
+const E=Array.isArray(p.ev)?p.ev:[],last=E[E.length-1],nx=p.nx||(last?evNext(last.d):null);if(nx)out.push({t:'e',pk,nm,date:nx,dl:evDiff(today,nx),n:E.length})});
+return out.sort((a,b)=>a.dl-b.dl)}
+const ntfTxt=x=>{const f=x.date.slice(8,10)+'/'+x.date.slice(5,7);
+if(x.t=='b')return x.dl==0?`Hoy cumple ${x.age} años: ${x.nm}`:x.dl==1?`Mañana cumple ${x.age} años: ${x.nm} (${f})`:`${x.nm} cumple ${x.age} años el ${f} (en ${x.dl} días)`;
+return x.dl<0?`Evaluación atrasada ${-x.dl} día${x.dl<-1?'s':''}: ${x.nm} (tocaba el ${evLong(x.date)})`:x.dl==0?`Hoy toca la evaluación de ${x.nm}`:x.dl==1?`Mañana: evaluación de ${x.nm} (${evLong(x.date)})`:`Evaluación de ${x.nm}: ${evLong(x.date)} (en ${x.dl} días)`};
+const ntfAlert=x=>x.t=='b'?x.dl<=1:x.dl<=1;
+function ntfFire(L){try{if(!('Notification' in window)||Notification.permission!=='granted')return;const day=dayKey(td()),sent=(()=>{try{return JSON.parse(LS.g('dieta_ntf','{}'))}catch(e){return{}}})();let ch=false;
+L.filter(ntfAlert).forEach(x=>{const id=x.t+'|'+x.pk+'|'+x.date+'|'+(x.dl<0?'late':x.dl);if(sent[id]==day)return;sent[id]=day;ch=true;const t=x.t=='b'?'Cumpleaños de cliente':'Evaluación de cliente',o={body:ntfTxt(x),tag:id,icon:'icon-192.png'};
+if(navigator.serviceWorker&&navigator.serviceWorker.getRegistration)navigator.serviceWorker.getRegistration().then(r=>{if(r&&r.showNotification)r.showNotification(t,o);else new Notification(t,o)}).catch(()=>{try{new Notification(t,o)}catch(e){}});else try{new Notification(t,o)}catch(e){}});
+if(ch){Object.keys(sent).forEach(k=>{if(sent[k]<dayKey(td()).slice(0,7)+'-00')delete sent[k]});LS.s('dieta_ntf',JSON.stringify(sent))}}catch(e){}}
+function ntfUI(){const L=ntfItems(),A=L.filter(ntfAlert),P=L.filter(x=>!ntfAlert(x)&&(x.t=='b'?x.dl<=30:x.dl<=21));
+let sec=document.getElementById('ntf');if(!sec){const host=document.querySelector('section[data-vs="cli"]');if(!host)return;host.insertAdjacentHTML('beforebegin','<section data-vs="cli" id="ntf"><h2>Notificaciones</h2><div id="ntfb"></div></section>');sec=document.getElementById('ntf')}
+const row=x=>`<li style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln)"><span><span class="tag ${x.t=='b'?'tg':'tc'}">${x.t=='b'?'Cumpleaños':'Evaluación'}</span> ${esc(ntfTxt(x))}</span><button class="x" data-nop="${esc(x.pk)}|${x.t}" style="padding:2px 8px;white-space:nowrap">Abrir</button></li>`;
+const can='Notification' in window,perm=can?Notification.permission:'denied';
+$('#ntfb').innerHTML=(A.length?`<ul style="list-style:none;padding:0;margin:0 0 10px">${A.map(row).join('')}</ul>`:'<p class="hint" style="margin:0 0 8px">No hay avisos urgentes para hoy ni para mañana.</p>')+(P.length?`<b style="font-size:13px">Próximos</b><ul style="list-style:none;padding:0;margin:4px 0 10px">${P.map(row).join('')}</ul>`:'')+(can&&perm!='granted'?`<div class="row"><button id="ntfon">Activar avisos del dispositivo</button></div><p class="hint">${perm=='denied'?'Los avisos están bloqueados en este navegador: actívalos en los ajustes del sitio.':'Te avisa al abrir la app: 1 día antes de cada cumpleaños y de cada evaluación, el mismo día y si se atrasa.'}</p>`:`<p class="hint">${can?'Avisos del dispositivo activados. La app los muestra cuando está abierta o en segundo plano; con la app cerrada del todo no puede avisar.':'Este navegador no permite avisos del dispositivo; verás esta lista al abrir la app.'} Los cumpleaños salen de la fecha de nacimiento del perfil y las evaluaciones de la fecha programada en Progreso.</p>`);
+document.querySelectorAll('[data-nop]').forEach(b=>b.onclick=()=>{const [pk,t]=b.dataset.nop.split('|'),sl=document.getElementById('ld');if(sl){sl.value=pk;sl.dispatchEvent(new Event('change'))}
+const nb=[...document.querySelectorAll('nav button,#nv button')].find(x=>new RegExp(t=='e'?'Progreso':'Perfil').test(x.textContent));if(nb)nb.click()});
+const on=document.getElementById('ntfon');if(on)on.onclick=async()=>{try{await Notification.requestPermission()}catch(e){}ntfUI();ntfFire(ntfItems())};
+const nv=[...document.querySelectorAll('nav button,#nv button')].find(x=>/^\s*Clientes/.test(x.textContent));if(nv){let bd=nv.querySelector('.ntfb');if(!A.length){if(bd)bd.remove()}else{if(!bd){bd=document.createElement('span');bd.className='ntfb';bd.style.cssText='background:#C4361F;color:#fff;border-radius:9px;padding:0 6px;font-size:10px;margin-left:4px;font-weight:700';nv.appendChild(bd)}bd.textContent=A.length;bd.setAttribute('aria-label',A.length+' avisos')}}
+ntfFire(L)}
+setTimeout(()=>{const v=VH.cli;VH.cli=()=>{if(v)v();ntfUI()};ntfUI();setInterval(()=>{if(!document.hidden)ntfUI()},1800000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)ntfUI()})},3500);
+
 VH.pro=prgUI;
 /* --- hoy (cliente) --- */
 const HIDK='dieta_hid';const hidG=()=>{try{return JSON.parse(localStorage.getItem(HIDK))||{}}catch(e){return{}}};
