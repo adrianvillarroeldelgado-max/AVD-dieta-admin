@@ -2472,7 +2472,7 @@ if(APPN=='a'){
 <div class="row"><button class="pr" id="cgs">Guardar y probar</button><button id="cgn">Sincronizar ahora</button><button class="x" id="cgx">Quitar conexión</button></div><p class="hint" id="cls" role="status"></p></section>`;
  $('#rb').closest('section').insertAdjacentHTML('afterend',cldH);
  const c0=cfgGet();if(c0){$('#cu').value=c0.url;$('#ck2').value=c0.key}
- $('#cgs').onclick=async()=>{const u=$('#cu').value.trim(),k=$('#ck2').value.trim();if(!/^https:\/\/[\w-]+\.supabase\.co$/.test(u.replace(/\/+$/,''))||k.length<20){csMsg('Revisa la URL (https://xxxx.supabase.co) y la clave pública.');return}
+ $('#cgs').onclick=async()=>{const m0=$('#cu').value.trim().match(/^(https:\/\/[\w-]+\.supabase\.co)(?:\/.*)?$/i),u=m0?m0[1]:$('#cu').value.trim(),k=$('#ck2').value.trim();if(m0)$('#cu').value=u;if(!/^https:\/\/[\w-]+\.supabase\.co$/.test(u.replace(/\/+$/,''))||k.length<20){csMsg('Revisa la URL (https://xxxx.supabase.co) y la clave pública.');return}
   cfgSet({url:u,key:k});try{await rpc('sync_get',{p_ch:'0'.repeat(64),p_kind:'chg'});csMsg('Conectado ✓. Desde ahora cada código que generes también se envía a la nube y los clientes reciben esta conexión con su próximo código.')}catch(e){csMsg('No se pudo conectar ('+e.message+'). Verifica que ejecutaste el SQL de la guía y que la clave es la pública.')}};
  $('#cgn').onclick=()=>cloudPull(1);
  $('#cgx').onclick=()=>{try{localStorage.removeItem(CFGK)}catch(e){}csMsg('Conexión quitada. Vuelves a usar códigos manuales.')};
