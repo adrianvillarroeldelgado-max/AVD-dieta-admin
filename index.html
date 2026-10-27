@@ -148,7 +148,8 @@ body[data-view=hoy] #dta>h2,body[data-view=hoy] #dta>.hint,body[data-view=hoy] #
 <p class="warn" id="bkr" data-vs="cli" style="display:none"></p>
 <section data-vs="cli"><h2 id="mct">Mis clientes</h2><div class="row" style="margin:0 0 10px"><button class="pr" id="nc">Nuevo cliente</button><select id="fl" style="width:auto" aria-label="Filtrar clientes"><option value="all">Todos</option><option value="active">Activos</option><option value="suspended">Suspendidos</option></select></div><div class="meals" id="cl"></div><p class="hint" id="cm" role="status"></p><p class="hint">Todos los clientes están activos salvo que los suspendas. Suspender genera un código de perfil que debes enviarle: al pegarlo, su app se bloquea hasta que le envíes un código de activación. Eliminar solo lo borra de tu lista.</p></section>
 <section data-vs="cli"><h2 id="cht">Cambios de clientes</h2><p class="hint" style="margin:0 0 8px">Cuando un cliente te envíe el código de sus cambios, pégalo aquí para ver qué modificó.</p><textarea id="rc" rows="2" placeholder="Pega aquí el código del cliente" aria-label="Código del cliente"></textarea><div class="row"><button class="pr" id="rb">Leer cambios</button></div><p class="hint" id="rm" role="status"></p><div class="meals" id="nt"></div></section>
-<section data-vs="cli"><h2>Respaldo de clientes</h2><p class="hint" style="margin:0 0 8px">Guarda todos tus clientes en un texto cifrado con una contraseña de respaldo. Copia el texto y guárdalo en un lugar seguro (por ejemplo, en un chat contigo mismo).</p><label>Contraseña de respaldo<input id="bp" type="password" autocomplete="new-password"></label><textarea id="bt" rows="3" placeholder="Aquí aparece el respaldo, o pégalo aquí para restaurar" style="margin-top:8px"></textarea><div class="row"><button class="pr" id="be">Exportar respaldo</button><button id="bi">Restaurar respaldo</button><button id="bc">Copiar</button></div><p class="hint" id="bm" role="status"></p></section>
+<section data-vs="cli" id="upd"><h2>Actualizar</h2><p class="hint" style="margin:0 0 8px">Un solo botón para ponerte al día: trae los cambios de tus otros dispositivos de administrador, recoge lo que enviaron tus clientes y busca la última versión de la app.</p><div class="row"><button class="pr" id="upb">Actualizar ahora</button><button id="upr" style="display:none">Reiniciar ahora</button></div><p class="hint" id="upm" role="status"></p><p class="hint" id="upv"></p>
+<details class="cx"><summary>Respaldo manual (opcional)</summary><p class="hint" style="margin:8px 0">Guarda todos tus clientes en un texto cifrado con una contraseña de respaldo. Copia el texto y guárdalo en un lugar seguro (por ejemplo, en un chat contigo mismo). Útil como copia de seguridad extra.</p><label>Contraseña de respaldo<input id="bp" type="password" autocomplete="new-password"></label><textarea id="bt" rows="3" placeholder="Aquí aparece el respaldo, o pégalo aquí para restaurar" style="margin-top:8px"></textarea><div class="row"><button class="pr" id="be">Exportar respaldo</button><button id="bi">Restaurar respaldo</button><button id="bc">Copiar</button></div><p class="hint" id="bm" role="status"></p></details></section>
 <section id="plc" data-vs="per">
 <h2>Perfil del cliente</h2>
 <div class="cx" id="wz0" style="margin:0 0 12px"><b>Plantilla de deporte</b><p class="hint">Rellena el deporte, las comidas y los entrenamientos de la semana. Luego ajusta lo que necesites.</p><div class="row"><select id="tpl" style="flex:1;width:auto"><option value="">Elegir plantilla…</option><option value="res">Resistencia (running, ciclismo)</option><option value="fue">Fuerza (pesas, crossfit)</option><option value="eq">Deporte de equipo (con partido el sábado)</option><option value="rec">Recreativo / pérdida de grasa</option></select><button id="tpa">Aplicar plantilla</button></div></div>
@@ -2261,10 +2262,13 @@ function applyNote(i){const n=S.notes[i],k=Object.keys(S.profiles).find(x=>Strin
 if(k){S.lg=S.profiles[k].log||[]}if(n.work.log){S.lg=mergeLog(S.lg,n.work.log);if(k)S.profiles[k].log=S.lg}
 if(k){const c=S.profiles[k];c.chk=n.work.chk||{};c.foods=n.work.foods;c.ms=n.work.ms||{};c.wk=n.work.wk;S.p={...c.p}}
 S.chk=n.work.chk||{};S.foods=n.work.foods;S.ms=n.work.ms||{};S.wk=n.work.wk;S.foods.forEach(ap);S.snap[n.u]=JSON.parse(JSON.stringify(n.work));S.notes.splice(i,1);save();bind();foodsUI();libUI();weekUI();plan();noteUI()}
+/* Seguridad: todo lo que llega de un cliente se limpia antes de usarlo (evita código escondido en nombres, unidades, etc.) */
+const scrubS=t=>t.replace(/[<>"'`\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,c=>({'<':'‹','>':'›','"':'”',"'":'’','`':'’'}[c]||''));
+function scrub(o,d){d=d||0;if(d>12)return null;if(typeof o=='string')return scrubS(o);if(Array.isArray(o))return o.map(x=>scrub(x,d+1));if(o&&typeof o=='object'){const r={};for(const k of Object.keys(o)){if(k=='__proto__'||k=='constructor'||k=='prototype')continue;r[scrubS(k)]=scrub(o[k],d+1)}return r}return o}
 $('#rb').onclick=async()=>{const raw=$('#rc').value.trim(),i=raw.indexOf('|'),m=t=>$('#rm').textContent=t;if(i<1){m('El código no es válido.');return}
 const u=raw.slice(0,i).toLowerCase(),cl=Object.values(S.profiles).find(x=>String(x.p.user||'').toLowerCase()==u);
 if(!cl){m('No tienes guardado un cliente con el usuario "'+u+'". Guárdalo antes con "Guardar cliente".');return}if(cl.p.status==='suspended'){m('Cliente suspendido: actívalo antes de leer sus cambios.');return}
-try{const d=await dec(u,cl.p.pass||'',raw.slice(i+1)),it=diff(S.snap[u]||{},d.work),stale=d.base&&S.snapT[u]&&d.base<S.snapT[u];
+try{const d=scrub(await dec(u,cl.p.pass||'',raw.slice(i+1))),it=diff(S.snap[u]||{},d.work),stale=d.base&&S.snapT[u]&&d.base<S.snapT[u];
 S.notes=S.notes.filter(n=>!(n.u==u&&n.t==d.t));S.recvT[u]=d.t;S.notes.unshift({u,name:cl.p.name||u,t:d.t,items:(stale?['⚠ Se hizo sobre una versión anterior a tu última actualización; puede no incluir tus cambios más recientes.']:[]).concat(it.length?it:['Sin diferencias respecto al último plan enviado.']),work:d.work});if(window.repSave)repSave(u,d.work,d.t);save();noteUI();lsUI();$('#rc').value='';m('Cambios de '+(cl.p.name||u)+' recibidos. Revisa la tarjeta de abajo.')}
 catch(e){m('No se pudo leer el código: puede estar incompleto, ser de otro cliente o la contraseña cambió.')}};
 noteUI();
@@ -2570,7 +2574,7 @@ el.querySelectorAll('[data-hm]').forEach(b=>b.onclick=()=>{const h2=hidG();h2[k]
 el.querySelectorAll('[data-gv]').forEach(b=>b.onclick=()=>showV(b.dataset.gv))}
 VH.hoy=()=>{S.sel=td();try{weekOut()}catch(e){}hoyUI()};
 VH.sem=()=>{try{weekOut()}catch(e){}};
-VH.cli=()=>{const bk=+(localStorage.getItem('dieta_bk')||0),e=$('#bkr');if(!e)return;const d=bk?Math.floor((Date.now()-bk)/864e5):null;if(d===null||d>=7){e.style.display='';e.innerHTML=(d===null?'Aún no has exportado un respaldo de tus clientes.':'Hace '+d+' días que no exportas un respaldo.')+' Hazlo abajo, en "Respaldo de clientes".'}else e.style.display='none'};
+VH.cli=()=>{const bk=+(localStorage.getItem('dieta_bk')||0),e=$('#bkr');if(!e)return;const d=bk?Math.floor((Date.now()-bk)/864e5):null;let sy='';try{sy=localStorage.getItem('dieta_ads')||''}catch(x){}if(!sy&&(d===null||d>=14)){e.style.display='';e.innerHTML=(d===null?'Aún no has exportado un respaldo de tus clientes.':'Hace '+d+' días que no exportas un respaldo.')+' Activa "Mis dispositivos" para sincronizar, o exporta un respaldo en "Actualizar".'}else e.style.display='none'};
 
 const TPL={res:{sport:'res',meals:5,wk:[[['fuerte',60]],[['mediano',60]],[['liviano',45]],[['fuerte',75]],[],[['fuerte',120]],[['liviano',40]]]},fue:{sport:'fue',meals:5,wk:[[['fuerte',75]],[['fuerte',75]],[],[['fuerte',75]],[['fuerte',75]],[['liviano',30]],[]]},eq:{sport:'mix',meals:4,wk:[[['liviano',60]],[['fuerte',75]],[['mediano',60]],[['fuerte',75]],[['liviano',30]],[['partido',90]],[]]},rec:{sport:'mix',meals:4,wk:[[['mediano',45]],[],[['mediano',45]],[],[['mediano',45]],[['liviano',40]],[]]}};
 $('#tpa').onclick=()=>{const t=TPL[$('#tpl').value];if(!t){toast('Elige una plantilla');return}S.p.sport=t.sport;S.p.meals=t.meals;S.wk=t.wk.map(a=>({s:a.map(x=>({i:x[0],m:x[1]}))}));bind();weekUI();plan();toast('Plantilla aplicada')};
@@ -2739,6 +2743,27 @@ $('#sdx').onclick=()=>{try{localStorage.removeItem(KP)}catch(e){}S.sy=0;st()};
 setInterval(()=>{if(!document.hidden)syncNow()},60000);setTimeout(()=>syncNow(),4000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncNow()});
 window.AVDSYNC={now:syncNow};
+})();
+
+/* ===== Actualizar: datos de otros dispositivos + clientes + versión de la app ===== */
+(function(){if(APPN!='a')return;
+const um=t=>{const e=$('#upm');if(e)e.textContent=t};
+const ver=async()=>{try{const k=(await caches.keys()).find(x=>/^avd-admin-v\d+/.test(x));return k?k.replace(/^avd-admin-/,''):''}catch(e){return ''}};
+const vs=async()=>{const v=await ver();const e=$('#upv');if(e)e.textContent=v?'Versión instalada: '+v:''};
+vs();
+$('#upb').onclick=async()=>{const b=$('#upb');b.disabled=true;$('#upr').style.display='none';const out=[];
+ try{
+  um('Actualizando…');
+  if(typeof gp=='function'||true){try{if(window.AVDSYNC)await window.AVDSYNC.now(1);const m=$('#sdm')&&$('#sdm').textContent;if(m)out.push(/Sincronizado/.test(m)?'Datos de tus dispositivos al día.':/Escribe la clave|Sin activar/.test(m)?'Mis dispositivos: sin activar.':m)}catch(e){}}
+  try{if($('#cgn')&&$('#cgn').onclick){await $('#cgn').onclick();const m=$('#cls')&&$('#cls').textContent;if(m)out.push(m)}}catch(e){}
+  let nuevo=false;const v0=await ver();
+  if('serviceWorker' in navigator){try{const reg=await navigator.serviceWorker.getRegistration();if(reg){await reg.update();await new Promise(r=>setTimeout(r,2500));const w=reg.installing||reg.waiting;if(w){await new Promise(res=>{if(w.state=='activated'||w.state=='redundant')return res();w.addEventListener('statechange',()=>{if(w.state=='activated'||w.state=='redundant')res()});setTimeout(res,8000)});nuevo=true}}}catch(e){}}
+  await vs();const v1=await ver();if(v0&&v1&&v0!==v1)nuevo=true;
+  if(nuevo){out.push('Hay una versión nueva de la app. Pulsa "Reiniciar ahora" para usarla (guarda antes lo que estés editando).');$('#upr').style.display=''}
+  else out.push('La app ya está en su última versión.');
+  um(out.join(' '))
+ }finally{b.disabled=false}};
+$('#upr').onclick=()=>{try{save()}catch(e){}location.reload()};
 })();
 
 /* ===== Seguridad (administrador): PIN y licencia ===== */
